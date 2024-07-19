@@ -1,3 +1,0 @@
-../Core/Src/DF_ROBOT_GAS.c:13:16:Checksum	24	static
-../Core/Src/DF_ROBOT_GAS.c:28:9:extractConcentration	32	static
-../Core/Src/DF_ROBOT_GAS.c:44:6:readSensorData	48	static
