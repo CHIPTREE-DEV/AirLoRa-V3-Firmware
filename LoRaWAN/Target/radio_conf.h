@@ -82,7 +82,7 @@ extern "C" {
   * @brief Radio maximum wakeup time (in ms)
   * @note override the default configuration of radio_driver.c
   */
-#define RF_WAKEUP_TIME              ( 10UL )
+#define RF_WAKEUP_TIME              ( 1UL )
 
 /**
   * @brief DCDC is enabled

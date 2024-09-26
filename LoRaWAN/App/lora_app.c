@@ -36,12 +36,19 @@
 #include "flash_if.h"
 
 /* USER CODE BEGIN Includes */
-
+#include "PMS5003.h"
+#include "DFRobot_MultiGasSensor.h"
+#include "SHT3x.h"
+#include "usart.h"
 /* USER CODE END Includes */
 
 /* External variables ---------------------------------------------------------*/
 /* USER CODE BEGIN EV */
-
+extern PMS_handle_t PMS_handle;
+extern DFRobotMGS_handle_t NO2_handle;
+extern DFRobotMGS_handle_t O3_handle;
+extern DFRobotMGS_handle_t CO_handle;
+extern SHT3x_handle_t SHT3x_handle;
 /* USER CODE END EV */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -338,6 +345,12 @@ static UTIL_TIMER_Object_t RxLedTimer;
   */
 static UTIL_TIMER_Object_t JoinLedTimer;
 
+
+extern PMS_handle_t PMS_handle;
+
+
+extern float AverageSamples(float* samples, int numSamples);
+
 /* USER CODE END PV */
 
 /* Exported functions ---------------------------------------------------------*/
@@ -542,102 +555,120 @@ static void SendTxData(void)
 {
   /* USER CODE BEGIN SendTxData_1 */
   LmHandlerErrorStatus_t status = LORAMAC_HANDLER_ERROR;
-  uint8_t batteryLevel = GetBatteryLevel();
-  sensor_t sensor_data;
   UTIL_TIMER_Time_t nextTxIn = 0;
 
-#ifdef CAYENNE_LPP
-  uint8_t channel = 0;
-#else
-  uint16_t pressure = 0;
-  int16_t temperature = 0;
+
+  float temperature;
+  float DF_Temp;
   uint16_t humidity = 0;
-  uint32_t i = 0;
-  int32_t latitude = 0;
-  int32_t longitude = 0;
-  uint16_t altitudeGps = 0;
-#endif /* CAYENNE_LPP */
+  uint16_t CO_Con, O3_Con, NO2_Con = 0;
+  uint16_t temp;
+  uint16_t temp_DF;
 
-  EnvSensors_Read(&sensor_data);
+//   uint8_t sample_data = 16;
+//   uint32_t DelayInterval = 8000;
+//
+//  float CO_Samples[sample_data];
+//  float O3_Samples[sample_data];
+//  float NO2_Samples[sample_data];
+//  float temp_Samples[sample_data];
+//  float DF_Temp_Samples[sample_data];
+//  float humidity_Samples[sample_data];
+//
+//  for (int i = 0; i < sample_data; i++) {
+//      CO_Samples[i] = 0;
+//      O3_Samples[i] = 0;
+//      NO2_Samples[i] = 0;
+//      temp_Samples[i] = 0;
+//      DF_Temp_Samples[i] = 0;
+//      humidity_Samples[i] = 0;
+//  }
+//
+//  for (int i = 0; i < sample_data; i++)
+//  {
+//      PMS_read(&PMS_handle);
+//      DFRobotMGS_Read(&NO2_handle);
+//      DFRobotMGS_Read(&O3_handle);
+//      DFRobotMGS_Read(&CO_handle);
+//
+//      // Store the samples
+//      CO_Samples[i] = DFRobotMGS_GetCO(&CO_handle);
+//      O3_Samples[i] = DFRobotMGS_GetO3(&O3_handle);
+//      NO2_Samples[i] = DFRobotMGS_GetNO2(&NO2_handle);
+//      DF_Temp_Samples[i] = (DFRobotMGS_Temp(&NO2_handle) + DFRobotMGS_Temp(&O3_handle) + DFRobotMGS_Temp(&CO_handle)) / 3;
+//
+//      SHT3x_Read(&SHT3x_handle);
+//      temp_Samples[i] = SHT3x_GetTemperature(&SHT3x_handle);
+//      humidity_Samples[i] = SHT3x_GetHumidity(&SHT3x_handle);
+//
+//      HAL_Delay(DelayInterval);
+//  }
 
-  APP_LOG(TS_ON, VLEVEL_M, "VDDA: %d\r\n", batteryLevel);
-  APP_LOG(TS_ON, VLEVEL_M, "temp: %d\r\n", (int16_t)(sensor_data.temperature));
+//  CO_Con = AverageSamples(CO_Samples, sample_data);
+//  O3_Con = AverageSamples(O3_Samples, sample_data);
+//  NO2_Con = AverageSamples(NO2_Samples, sample_data);
+//  DF_Temp = AverageSamples(DF_Temp_Samples, sample_data);
+//  temperature = AverageSamples(temp_Samples, sample_data);
+//  humidity = AverageSamples(humidity_Samples, sample_data);
 
-  AppData.Port = LORAWAN_USER_APP_PORT;
+	PMS_read(&PMS_handle);
+	DFRobotMGS_Read(&NO2_handle);
+	DFRobotMGS_Read(&O3_handle);
+	DFRobotMGS_Read(&CO_handle);
 
-#ifdef CAYENNE_LPP
-  CayenneLppReset();
-  CayenneLppAddBarometricPressure(channel++, sensor_data.pressure);
-  CayenneLppAddTemperature(channel++, sensor_data.temperature);
-  CayenneLppAddRelativeHumidity(channel++, (uint16_t)(sensor_data.humidity));
+	CO_Con = DFRobotMGS_GetCO(&CO_handle);
+	O3_Con = DFRobotMGS_GetO3(&O3_handle);
+	NO2_Con = DFRobotMGS_GetNO2(&NO2_handle);
+//	DF_Temp = (DFRobotMGS_Temp(&NO2_handle) + DFRobotMGS_Temp(&O3_handle) + DFRobotMGS_Temp(&CO_handle))/3;
+	DF_Temp = DFRobotMGS_Temp(&CO_handle);
 
-  if ((LmHandlerParams.ActiveRegion != LORAMAC_REGION_US915) && (LmHandlerParams.ActiveRegion != LORAMAC_REGION_AU915)
-      && (LmHandlerParams.ActiveRegion != LORAMAC_REGION_AS923))
-  {
-    CayenneLppAddDigitalInput(channel++, GetBatteryLevel());
-    CayenneLppAddDigitalOutput(channel++, AppLedStateOn);
-  }
+	SHT3x_Read(&SHT3x_handle);
+	temperature = SHT3x_GetTemperature(&SHT3x_handle);
+	humidity = SHT3x_GetHumidity(&SHT3x_handle);
 
-  CayenneLppCopy(AppData.Buffer);
-  AppData.BufferSize = CayenneLppGetSize();
-#else  /* not CAYENNE_LPP */
-  humidity    = (uint16_t)(sensor_data.humidity * 10);            /* in %*10     */
-  temperature = (int16_t)(sensor_data.temperature);
-  pressure = (uint16_t)(sensor_data.pressure * 100 / 10); /* in hPa / 10 */
+	temp_DF = (DF_Temp - (-40)) * 10;
+	temp = (temperature - (-40)) * 10;
 
-  AppData.Buffer[i++] = AppLedStateOn;
-  AppData.Buffer[i++] = (uint8_t)((pressure >> 8) & 0xFF);
-  AppData.Buffer[i++] = (uint8_t)(pressure & 0xFF);
-  AppData.Buffer[i++] = (uint8_t)(temperature & 0xFF);
-  AppData.Buffer[i++] = (uint8_t)((humidity >> 8) & 0xFF);
-  AppData.Buffer[i++] = (uint8_t)(humidity & 0xFF);
+	AppData.Port = LORAWAN_USER_APP_PORT;
+	int i = 0;
 
-  if ((LmHandlerParams.ActiveRegion == LORAMAC_REGION_US915) || (LmHandlerParams.ActiveRegion == LORAMAC_REGION_AU915)
-      || (LmHandlerParams.ActiveRegion == LORAMAC_REGION_AS923))
-  {
-    AppData.Buffer[i++] = 0;
-    AppData.Buffer[i++] = 0;
-    AppData.Buffer[i++] = 0;
-    AppData.Buffer[i++] = 0;
-  }
-  else
-  {
-    latitude = sensor_data.latitude;
-    longitude = sensor_data.longitude;
+	AppData.Buffer[i++] = (uint8_t)NO2_Con;
+	AppData.Buffer[i++] = (uint8_t)O3_Con;
+	AppData.Buffer[i++] = (uint8_t)(CO_Con << 8);
+	AppData.Buffer[i++] = (uint8_t)CO_Con;
+	AppData.Buffer[i++] = (uint8_t)(temp >> 8);
+	AppData.Buffer[i++] = (uint8_t)temp;
+	AppData.Buffer[i++] = (uint8_t)humidity;
+	AppData.Buffer[i++] = (uint8_t)(PMS_handle.data.PM1_0_atmospheric >> 8);
+	AppData.Buffer[i++] = (uint8_t)PMS_handle.data.PM1_0_atmospheric;
+	AppData.Buffer[i++] = (uint8_t)(PMS_handle.data.PM2_5_atmospheric >> 8);
+	AppData.Buffer[i++] = (uint8_t)PMS_handle.data.PM2_5_atmospheric;
+	AppData.Buffer[i++] = (uint8_t)(PMS_handle.data.PM10_atmospheric >> 8);
+	AppData.Buffer[i++] = (uint8_t)PMS_handle.data.PM10_atmospheric;
+	AppData.Buffer[i++] = (uint8_t)(temp_DF >> 8);
+	AppData.Buffer[i++] = (uint8_t)temp_DF;
 
-    AppData.Buffer[i++] = GetBatteryLevel();        /* 1 (very low) to 254 (fully charged) */
-    AppData.Buffer[i++] = (uint8_t)((latitude >> 16) & 0xFF);
-    AppData.Buffer[i++] = (uint8_t)((latitude >> 8) & 0xFF);
-    AppData.Buffer[i++] = (uint8_t)(latitude & 0xFF);
-    AppData.Buffer[i++] = (uint8_t)((longitude >> 16) & 0xFF);
-    AppData.Buffer[i++] = (uint8_t)((longitude >> 8) & 0xFF);
-    AppData.Buffer[i++] = (uint8_t)(longitude & 0xFF);
-    AppData.Buffer[i++] = (uint8_t)((altitudeGps >> 8) & 0xFF);
-    AppData.Buffer[i++] = (uint8_t)(altitudeGps & 0xFF);
-  }
+	AppData.BufferSize = i;
 
-  AppData.BufferSize = i;
-#endif /* CAYENNE_LPP */
+	if ((JoinLedTimer.IsRunning) && (LmHandlerJoinStatus() == LORAMAC_HANDLER_SET))
+	{
+		UTIL_TIMER_Stop(&JoinLedTimer);
+		HAL_GPIO_WritePin(LED_JOIN_GPIO_Port, LED_JOIN_Pin, GPIO_PIN_RESET); /* LED_RED */
+	}
 
-  if ((JoinLedTimer.IsRunning) && (LmHandlerJoinStatus() == LORAMAC_HANDLER_SET))
-  {
-    UTIL_TIMER_Stop(&JoinLedTimer);
-    HAL_GPIO_WritePin(LED_JOIN_GPIO_Port, LED_JOIN_Pin, GPIO_PIN_RESET); /* LED_RED */
-  }
-
-  status = LmHandlerSend(&AppData, LmHandlerParams.IsTxConfirmed, false);
-  if (LORAMAC_HANDLER_SUCCESS == status)
-  {
-    APP_LOG(TS_ON, VLEVEL_L, "SEND REQUEST\r\n");
-  }
-  else if (LORAMAC_HANDLER_DUTYCYCLE_RESTRICTED == status)
-  {
-    nextTxIn = LmHandlerGetDutyCycleWaitTime();
-    if (nextTxIn > 0)
-    {
-      APP_LOG(TS_ON, VLEVEL_L, "Next Tx in  : ~%d second(s)\r\n", (nextTxIn / 1000));
-    }
-  }
+	status = LmHandlerSend(&AppData, LmHandlerParams.IsTxConfirmed, false);
+	if (LORAMAC_HANDLER_SUCCESS == status)
+	{
+		APP_LOG(TS_ON, VLEVEL_L, "SEND REQUEST\r\n");
+	}
+	else if (LORAMAC_HANDLER_DUTYCYCLE_RESTRICTED == status)
+	{
+		nextTxIn = LmHandlerGetDutyCycleWaitTime();
+		if (nextTxIn > 0)
+		{
+			APP_LOG(TS_ON, VLEVEL_L, "Next Tx in  : ~%d second(s)\r\n", (nextTxIn / 1000));
+		}
+	}
 
   if (EventType == TX_ON_TIMER)
   {
@@ -666,7 +697,7 @@ static void OnTxTimerEvent(void *context)
 /* USER CODE BEGIN PrFD_LedEvents */
 static void OnTxTimerLedEvent(void *context)
 {
-  HAL_GPIO_WritePin(LED_TX_GPIO_Port, LED_TX_Pin, GPIO_PIN_RESET); /* LED_GREEN */
+//  HAL_GPIO_WritePin(LED_TX_GPIO_Port, LED_TX_Pin, GPIO_PIN_RESET); /* LED_GREEN */
 }
 
 static void OnRxTimerLedEvent(void *context)
@@ -689,7 +720,7 @@ static void OnTxData(LmHandlerTxParams_t *params)
     /* Process Tx event only if its a mcps response to prevent some internal events (mlme) */
     if (params->IsMcpsConfirm != 0)
     {
-      HAL_GPIO_WritePin(LED_TX_GPIO_Port, LED_TX_Pin, GPIO_PIN_SET); /* LED_GREEN */
+//      HAL_GPIO_WritePin(LED_TX_GPIO_Port, LED_TX_Pin, GPIO_PIN_SET); /* LED_GREEN */
       UTIL_TIMER_Start(&TxLedTimer);
 
       APP_LOG(TS_OFF, VLEVEL_M, "\r\n###### ========== MCPS-Confirm =============\r\n");
@@ -720,10 +751,10 @@ static void OnJoinRequest(LmHandlerJoinParams_t *joinParams)
       UTIL_SEQ_SetTask((1 << CFG_SEQ_Task_LoRaStoreContextEvent), CFG_SEQ_Prio_0);
 
       UTIL_TIMER_Stop(&JoinLedTimer);
-      HAL_GPIO_WritePin(LED_JOIN_GPIO_Port, LED_JOIN_Pin, GPIO_PIN_RESET); /* LED_RED */
+      HAL_GPIO_WritePin(LED_JOIN_GPIO_Port, LED_JOIN_Pin, GPIO_PIN_SET); /* LED_RED */
 
       /* Enable sub MCU */
-      HAL_GPIO_WritePin(SUB_EN_GPIO_Port, SUB_EN_Pin, GPIO_PIN_SET);
+//      HAL_GPIO_WritePin(SUB_EN_GPIO_Port, SUB_EN_Pin, GPIO_PIN_SET);
 
       APP_LOG(TS_OFF, VLEVEL_M, "\r\n###### = JOINED = ");
       if (joinParams->Mode == ACTIVATION_TYPE_ABP)
@@ -872,11 +903,11 @@ static void StopJoin(void)
 {
   /* USER CODE BEGIN StopJoin_1 */
 //  HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_SET); /* LED_BLUE */
-  HAL_GPIO_WritePin(LED_TX_GPIO_Port, LED_TX_Pin, GPIO_PIN_SET); /* LED_GREEN */
-	HAL_GPIO_WritePin(LED_JOIN_GPIO_Port, LED_JOIN_Pin, GPIO_PIN_SET); /* LED_RED */
+//  HAL_GPIO_WritePin(LED_TX_GPIO_Port, LED_TX_Pin, GPIO_PIN_SET); /* LED_GREEN */
+	HAL_GPIO_WritePin(LED_JOIN_GPIO_Port, LED_JOIN_Pin, GPIO_PIN_RESET); /* LED_RED */
 
 	/* Disable Sub MCU */
-	HAL_GPIO_WritePin(SUB_EN_GPIO_Port, SUB_EN_Pin, GPIO_PIN_RESET);
+//	HAL_GPIO_WritePin(SUB_EN_GPIO_Port, SUB_EN_Pin, GPIO_PIN_RESET);
 
   /* USER CODE END StopJoin_1 */
 
@@ -920,7 +951,7 @@ static void OnStopJoinTimerEvent(void *context)
   }
   /* USER CODE BEGIN OnStopJoinTimerEvent_Last */
 //  HAL_GPIO_WritePin(LED1_GPIO_Port, LED1_Pin, GPIO_PIN_RESET); /* LED_BLUE */
-  HAL_GPIO_WritePin(LED_TX_GPIO_Port, LED_TX_Pin, GPIO_PIN_RESET); /* LED_GREEN */
+//  HAL_GPIO_WritePin(LED_TX_GPIO_Port, LED_TX_Pin, GPIO_PIN_RESET); /* LED_GREEN */
   HAL_GPIO_WritePin(LED_JOIN_GPIO_Port, LED_JOIN_Pin, GPIO_PIN_RESET); /* LED_RED */
   /* USER CODE END OnStopJoinTimerEvent_Last */
 }

@@ -26,7 +26,10 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <string.h>
+#include "PMS5003.h"
+#include "DFRobot_MultiGasSensor.h"
+#include "SHT3x.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -47,12 +50,23 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+PMS_handle_t PMS_handle;
+DFRobotMGS_handle_t NO2_handle;
+DFRobotMGS_handle_t O3_handle;
+DFRobotMGS_handle_t CO_handle;
+SHT3x_handle_t SHT3x_handle;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
+int uart1_read(uint8_t *buf, uint16_t size, uint16_t timeout, void *arg);
+int uart1_write(uint8_t *buf, uint16_t size, uint16_t timeout, void *arg);
+int i2c2_read(uint8_t addr, uint8_t *buf, uint16_t size, uint16_t timeout, void *arg);
+int i2c2_write(uint8_t addr, uint8_t *buf, uint16_t size, uint16_t timeout, void *arg);
+float AverageSamples(float* samples, int numSamples);
+
+
 
 /* USER CODE END PFP */
 
@@ -91,10 +105,39 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_DMA_Init();
-  MX_USART1_UART_Init();
   MX_LoRaWAN_Init();
+  MX_USART2_UART_Init();
+  MX_USART1_UART_Init();
   MX_I2C2_Init();
   /* USER CODE BEGIN 2 */
+  HAL_GPIO_WritePin(SENSOR_EN_GPIO_Port, SENSOR_EN_Pin, GPIO_PIN_SET);
+  HAL_Delay(5000);
+
+	PMS_handle.read = uart1_read;
+	PMS_handle.write = uart1_write;
+	PMS_handle.mode = PMS_MODE_PASSIVE;
+	memset(&PMS_handle.data, 0, sizeof(PMS_data_t));
+	PMS_Init(&PMS_handle);
+
+	NO2_handle.read = i2c2_read;
+	NO2_handle.write = i2c2_write;
+	NO2_handle.addr = 0x75;
+	memset(&NO2_handle.data, 0, sizeof(DFRobotMGS_data_t));
+
+	O3_handle.read = i2c2_read;
+	O3_handle.write = i2c2_write;
+	O3_handle.addr = 0x74;
+	memset(&O3_handle.data, 0, sizeof(DFRobotMGS_data_t));
+
+	CO_handle.read = i2c2_read;
+	CO_handle.write = i2c2_write;
+	CO_handle.addr = 0x76;
+	memset(&CO_handle.data, 0, sizeof(DFRobotMGS_data_t));
+
+	SHT3x_handle.read = i2c2_read;
+	SHT3x_handle.write = i2c2_write;
+	SHT3x_handle.addr = 0x44;
+	memset(&SHT3x_handle.data, 0, sizeof(SHT3x_data_t));
 
   /* USER CODE END 2 */
 
@@ -106,6 +149,7 @@ int main(void)
     MX_LoRaWAN_Process();
 
     /* USER CODE BEGIN 3 */
+
   }
   /* USER CODE END 3 */
 }
@@ -159,7 +203,39 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+int uart1_read(uint8_t *buf, uint16_t size, uint16_t timeout, void *arg)
+{
+	UNUSED(arg);
+	return HAL_UART_Receive(&huart1, buf, size, timeout) == HAL_OK;
+}
 
+int uart1_write(uint8_t *buf, uint16_t size, uint16_t timeout, void *arg)
+{
+	UNUSED(arg);
+	return HAL_UART_Transmit(&huart1, buf, size, timeout) == HAL_OK;
+}
+
+int i2c2_read(uint8_t addr, uint8_t *buf, uint16_t size, uint16_t timeout, void *arg)
+{
+	UNUSED(arg);
+	return HAL_I2C_Master_Receive(&hi2c2, addr << 1u, buf, size, timeout) == HAL_OK;
+}
+
+int i2c2_write(uint8_t addr, uint8_t *buf, uint16_t size, uint16_t timeout, void *arg)
+{
+	UNUSED(arg);
+	return HAL_I2C_Master_Transmit(&hi2c2, addr << 1u, buf, size, timeout) == HAL_OK;
+}
+
+float AverageSamples(float* samples, int numSamples)
+{
+	float sum = 0;
+    for (int i = 0; i < numSamples; i++)
+    {
+        sum += samples[i];
+    }
+    return (float)(sum / numSamples);
+}
 /* USER CODE END 4 */
 
 /**

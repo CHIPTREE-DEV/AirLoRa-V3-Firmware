@@ -25,6 +25,10 @@
 #include "stm32_seq.h"
 
 /* USER CODE BEGIN Includes */
+#include "PMS5003.h"
+#include "DFRobot_MultiGasSensor.h"
+#include "SHT3x.h"
+#include "usart.h"
 
 /* USER CODE END Includes */
 

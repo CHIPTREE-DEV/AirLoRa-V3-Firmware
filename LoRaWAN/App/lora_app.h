@@ -39,7 +39,7 @@ extern "C" {
 /* Exported constants --------------------------------------------------------*/
 
 /* LoraWAN application configuration (Mw is configured by lorawan_conf.h) */
-#define ACTIVE_REGION                               LORAMAC_REGION_US915
+#define ACTIVE_REGION                               LORAMAC_REGION_AS923
 
 /* USER CODE BEGIN EC_CAYENNE_LPP */
 /*!
@@ -51,7 +51,7 @@ extern "C" {
 /*!
  * Defines the application data transmission duty cycle. 10s, value in [ms].
  */
-#define APP_TX_DUTYCYCLE                            60000
+#define APP_TX_DUTYCYCLE                            20000
 
 /*!
  * LoRaWAN User application port
@@ -116,7 +116,7 @@ extern "C" {
  * \remark periodicity is equal to 2^LORAWAN_DEFAULT_PING_SLOT_PERIODICITY seconds
  *         example: 2^4 = 16 seconds. The end-device will open an Rx slot every 16 seconds.
  */
-#define LORAWAN_DEFAULT_PING_SLOT_PERIODICITY       4
+#define LORAWAN_DEFAULT_PING_SLOT_PERIODICITY       2
 
 /*!
  * Default response timeout for class b and class c confirmed
